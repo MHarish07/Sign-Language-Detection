@@ -1,0 +1,378 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+{% if mode == "random" %}
+<div class="max-w-4xl mx-auto space-y-8 mt-10">
+    <div class="text-center mb-12">
+        <h1 class="text-5xl font-black text-primary mb-4 uppercase tracking-widest">
+            Practice Arena
+        </h1>
+        <p class="text-xl opacity-80">Test your skills across three difficulty levels.</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <a href="/practice?mode=beginner" class="card glass-card hover:scale-105 transition-all duration-300 border-t-4 border-t-info cursor-pointer group">
+            <div class="card-body items-center text-center p-8">
+                <i class="fas fa-font text-5xl text-info mb-4 group-hover:animate-bounce"></i>
+                <h2 class="card-title text-2xl font-black mb-2">Beginner</h2>
+                <p class="opacity-70 text-sm">Practice random single letters to build muscle memory.</p>
+            </div>
+        </a>
+
+        <a href="/practice?mode=medium" class="card glass-card hover:scale-105 transition-all duration-300 border-t-4 border-t-warning cursor-pointer group">
+            <div class="card-body items-center text-center p-8">
+                <i class="fas fa-comment-dots text-5xl text-warning mb-4 group-hover:animate-bounce"></i>
+                <h2 class="card-title text-2xl font-black mb-2">Medium</h2>
+                <p class="opacity-70 text-sm">Spell out short words and common phrases.</p>
+            </div>
+        </a>
+
+        <a href="/practice?mode=advanced" class="card glass-card hover:scale-105 transition-all duration-300 border-t-4 border-t-error cursor-pointer group">
+            <div class="card-body items-center text-center p-8">
+                <i class="fas fa-align-left text-5xl text-error mb-4 group-hover:animate-bounce"></i>
+                <h2 class="card-title text-2xl font-black mb-2">Advanced</h2>
+                <p class="opacity-70 text-sm">Sign full AI-generated paragraphs continuously.</p>
+            </div>
+        </a>
+    </div>
+</div>
+
+{% else %}
+<div class="mb-8 flex flex-col md:flex-row items-center justify-between glass-card p-6 rounded-3xl">
+    <div>
+        <h1 class="text-4xl font-black text-primary mb-2 uppercase tracking-widest">
+            {% if mode == 'single' %}Learning Mode{% else %}{{ mode | capitalize }} Practice{% endif %}
+        </h1>
+        <p class="text-lg opacity-80" id="instructionText">
+            Sign the target and hold it steady!
+        </p>
+    </div>
+    
+    <div class="mt-4 md:mt-0 bg-base-300 px-8 py-4 rounded-2xl border border-white/10 shadow-inner text-center">
+        <p class="text-xs uppercase tracking-widest opacity-50 font-black mb-1">Score</p>
+        <p class="text-5xl font-black text-success" id="scoreDisplay">0</p>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    
+    <div class="lg:col-span-1 space-y-6">
+        <div class="glass-card rounded-3xl p-8 flex flex-col items-center justify-center h-full min-h-[300px] shadow-2xl relative overflow-hidden">
+            <div class="absolute inset-0 bg-primary/5 pointer-events-none"></div>
+            <p class="text-sm uppercase tracking-widest opacity-50 font-black mb-4 z-10" id="targetLabel">Target</p>
+            
+            <div id="targetDisplay" class="text-6xl font-black text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.5)] z-10 text-center break-words w-full">
+                </div>
+            
+            <p class="mt-8 text-center text-sm font-bold opacity-70 z-10" id="feedbackText">Waiting for sign...</p>
+        </div>
+    </div>
+
+    <div class="lg:col-span-2 space-y-6">
+        <div class="relative glass-card rounded-3xl overflow-hidden shadow-2xl aspect-video bg-black border border-white/10">
+            <video id="video" class="absolute inset-0 w-full h-full object-cover" autoplay playsinline muted></video>
+            <canvas id="overlayCanvas" class="absolute inset-0 w-full h-full z-10"></canvas>
+            <canvas id="captureCanvas" class="hidden"></canvas>
+            
+            <div id="loadingOverlay" class="absolute inset-0 flex flex-col items-center justify-center bg-base-100/90 z-20">
+                <span class="loading loading-spinner loading-lg text-primary"></span>
+                <p class="mt-4 font-semibold" id="loadingText">Initializing Camera...</p>
+            </div>
+
+            <div class="absolute bottom-4 left-4 flex items-center gap-4 glass-card p-4 rounded-2xl z-30 border-primary/20">
+                <div class="relative w-14 h-14">
+                    <svg class="w-full h-full" viewBox="0 0 100 100">
+                        <circle class="text-white/5" stroke-width="10" stroke="currentColor" fill="transparent" r="40" cx="50" cy="50"/>
+                        <circle id="progressCircle" class="text-primary transition-all duration-100 ease-linear" stroke-width="10" stroke-dasharray="251.2" stroke-dashoffset="251.2" stroke-linecap="round" stroke="currentColor" fill="transparent" r="40" cx="50" cy="50"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-[10px] uppercase tracking-widest opacity-50 font-black">Current Sign</p>
+                    <p id="gestureText" class="text-2xl font-black text-white">-</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="flex justify-end gap-4">
+            {% if mode == 'single' %}
+                <a href="/learn" class="btn btn-outline btn-error rounded-xl font-bold">Back to Alphabet</a>
+                <button id="nextBtn" class="btn btn-primary rounded-xl font-bold">Next Letter <i class="fas fa-arrow-right ml-2"></i></button>
+            {% else %}
+                <a href="/practice" class="btn btn-outline btn-error rounded-xl font-bold">Quit Practice</a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div id="toastContainer" class="toast toast-end z-50"></div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if mode != "random" %}
+<script>
+    const video = document.getElementById('video');
+    const overlayCanvas = document.getElementById('overlayCanvas');
+    const captureCanvas = document.getElementById('captureCanvas');
+    const progressCircle = document.getElementById('progressCircle');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    const gestureText = document.getElementById('gestureText');
+    const targetDisplay = document.getElementById('targetDisplay');
+    const scoreDisplay = document.getElementById('scoreDisplay');
+    const feedbackText = document.getElementById('feedbackText');
+    const nextBtn = document.getElementById('nextBtn'); // Only exists in 'single' mode
+
+    let ws;
+    let streamActive = false;
+    let canSendFrame = true;
+    const CIRCUMFERENCE = 2 * Math.PI * 40;
+    
+    // Core Logic Variables
+    const currentMode = "{{ mode }}"; 
+    const initialChar = "{{ initial_char }}";
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".replace('J', '').replace('Z', '').split('');
+    
+    let score = 0;
+    let targetPhrase = ""; // The full word/paragraph (for medium/advanced)
+    let currentPhraseIndex = 0; // Where we are in the phrase
+    let currentTargetChar = ""; // The exact letter needed right now
+
+    const showToast = (message, type = 'success') => {
+        const container = document.getElementById('toastContainer');
+        const alert = document.createElement('div');
+        alert.className = `alert alert-${type} shadow-2xl mb-2 font-bold transition-all duration-300 z-50`;
+        alert.innerHTML = `<span>${message}</span>`;
+        container.appendChild(alert);
+        setTimeout(() => {
+            alert.classList.add('opacity-0');
+            setTimeout(() => alert.remove(), 300);
+        }, 1500);
+    };
+
+    // ==========================================
+    // DATA FETCHING & UI UPDATES
+    // ==========================================
+    
+    async function setupNextTarget() {
+        feedbackText.innerText = "Waiting for sign...";
+        feedbackText.classList.remove('text-success');
+
+        if (currentMode === 'single') {
+            // Learn Mode: Sequential
+            currentTargetChar = initialChar || 'A';
+            if(nextBtn && initialChar) {
+               let idx = alphabet.indexOf(initialChar);
+               currentTargetChar = idx !== -1 ? alphabet[idx] : 'A';
+            }
+            targetPhrase = currentTargetChar;
+            renderTargetHTML();
+            
+        } else if (currentMode === 'beginner') {
+            // Random single letters
+            const randomIndex = Math.floor(Math.random() * alphabet.length);
+            currentTargetChar = alphabet[randomIndex];
+            targetPhrase = currentTargetChar;
+            renderTargetHTML();
+            
+        } else if (currentMode === 'medium') {
+            // Words/Phrases
+            document.getElementById('loadingText').innerText = "Loading Phrases...";
+            loadingOverlay.classList.remove('hidden');
+            try {
+                const res = await fetch('/api/practice/levels');
+                const data = await res.json();
+                const levels = data.levels;
+                targetPhrase = levels[Math.floor(Math.random() * levels.length)];
+                currentPhraseIndex = 0;
+                setNextCharInPhrase();
+            } catch (e) { console.error(e); targetPhrase = "HELLO"; currentPhraseIndex = 0; setNextCharInPhrase(); }
+            loadingOverlay.classList.add('hidden');
+            
+        } else if (currentMode === 'advanced') {
+            // LLM Paragraphs
+            document.getElementById('loadingText').innerText = "Generating AI Paragraph...";
+            loadingOverlay.classList.remove('hidden');
+            try {
+                const res = await fetch('/api/practice/paragraph');
+                const data = await res.json();
+                targetPhrase = data.paragraph;
+                currentPhraseIndex = 0;
+                setNextCharInPhrase();
+            } catch (e) { console.error(e); targetPhrase = "PRACTICE MAKES PERFECT"; currentPhraseIndex = 0; setNextCharInPhrase(); }
+            loadingOverlay.classList.add('hidden');
+        }
+    }
+
+    function setNextCharInPhrase() {
+        // Skip spaces automatically
+        while(currentPhraseIndex < targetPhrase.length && targetPhrase[currentPhraseIndex] === ' ') {
+            currentPhraseIndex++;
+        }
+        
+        if (currentPhraseIndex >= targetPhrase.length) {
+            // Phrase complete!
+            showToast("Fantastic! Sequence Complete.", "success");
+            score += 10;
+            scoreDisplay.innerText = score;
+            setTimeout(setupNextTarget, 1500);
+            return;
+        }
+        
+        currentTargetChar = targetPhrase[currentPhraseIndex];
+        renderTargetHTML();
+    }
+
+    function renderTargetHTML() {
+        if (currentMode === 'single' || currentMode === 'beginner') {
+            targetDisplay.className = "text-9xl font-black text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.5)] z-10";
+            targetDisplay.innerHTML = currentTargetChar;
+        } else {
+            // Medium/Advanced: Highlight the current letter being signed
+            targetDisplay.className = "text-3xl font-bold leading-relaxed text-white z-10 text-left w-full";
+            let html = "";
+            for (let i = 0; i < targetPhrase.length; i++) {
+                if (i < currentPhraseIndex) {
+                    html += `<span class="text-success opacity-50">${targetPhrase[i]}</span>`;
+                } else if (i === currentPhraseIndex) {
+                    html += `<span class="text-primary text-5xl bg-primary/20 rounded px-1 animate-pulse border-b-4 border-primary">${targetPhrase[i]}</span>`;
+                } else {
+                    html += `<span>${targetPhrase[i]}</span>`;
+                }
+            }
+            targetDisplay.innerHTML = html;
+        }
+    }
+
+    // ==========================================
+    // CAMERA & WEBSOCKET LOGIC
+    // ==========================================
+
+    async function startCamera() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+            video.srcObject = stream;
+            video.onloadedmetadata = () => {
+                overlayCanvas.width = video.clientWidth;
+                overlayCanvas.height = video.clientHeight;
+                loadingOverlay.classList.add('hidden');
+                connectWS();
+            };
+        } catch (err) {
+            loadingOverlay.innerHTML = `<p class="text-error font-bold">Camera Access Denied</p>`;
+        }
+    }
+
+    function drawDetections(detections) {
+        const ctx = overlayCanvas.getContext('2d');
+        ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+        const scaleX = overlayCanvas.width / 320;
+        const scaleY = overlayCanvas.height / 240;
+
+        detections.forEach(det => {
+            const [x1, y1, x2, y2] = det.bbox;
+            const isCorrect = (det.class_name.toUpperCase() === currentTargetChar);
+            ctx.strokeStyle = isCorrect ? '#00b0ff' : '#570df8'; 
+            ctx.lineWidth = 3;
+            ctx.strokeRect(x1 * scaleX, y1 * scaleY, (x2 - x1) * scaleX, (y2 - y1) * scaleY);
+            
+            ctx.fillStyle = isCorrect ? '#00b0ff' : '#570df8';
+            const label = `${det.class_name}`;
+            ctx.font = 'bold 14px Inter, system-ui';
+            ctx.fillRect(x1 * scaleX, (y1 * scaleY) - 22, ctx.measureText(label).width + 10, 22);
+            ctx.fillStyle = 'white';
+            ctx.fillText(label, (x1 * scaleX) + 5, (y1 * scaleY) - 6);
+        });
+    }
+
+    function connectWS() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        ws = new WebSocket(`${protocol}//${window.location.host}/ws/stream?mode=practice`);
+
+        ws.onopen = () => { streamActive = true; requestAnimationFrame(processLoop); };
+
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.type === 'update') {
+                if (data.detections) drawDetections(data.detections);
+                canSendFrame = true;
+                
+                if (data.current_gesture !== undefined) gestureText.innerText = data.current_gesture || "-";
+                if (data.progress !== undefined) {
+                    progressCircle.style.strokeDashoffset = CIRCUMFERENCE - ((data.progress || 0) * CIRCUMFERENCE);
+                }
+
+                // SUCCESS LOGIC
+                if (data.committed && data.char) {
+                    const detectedChar = data.char.toUpperCase();
+                    
+                    if (detectedChar === currentTargetChar) {
+
+                        // --- NEW AUDIO PLAYBACK CODE ---
+                        const ping = document.getElementById('pingSound');
+                        if (ping) {
+                            ping.currentTime = 0; // Reset to start so it can play rapidly back-to-back
+                            ping.play().catch(e => console.log("Audio play blocked by browser:", e));
+                        }
+                        // -------------------------------
+                        score += 1;
+                        scoreDisplay.innerText = score;
+                        feedbackText.innerText = "Excellent!";
+                        feedbackText.classList.add('text-success');
+                        ws.send(JSON.stringify({ type: 'reset' }));
+                        
+                        if (currentMode === 'single') {
+                            // In single/learn mode, wait for user to click Next
+                            targetDisplay.classList.add('text-success');
+                            showToast(`Perfect! Click Next Letter.`, "success");
+                        } else if (currentMode === 'beginner') {
+                            // Auto advance in beginner practice
+                            showToast(`Correct!`, "success");
+                            setTimeout(setupNextTarget, 800);
+                        } else {
+                            // Medium/Advanced: Move to next letter in string
+                            currentPhraseIndex++;
+                            setNextCharInPhrase();
+                        }
+                    } else if (detectedChar !== " " && detectedChar !== "-") {
+                        feedbackText.innerText = `You signed ${detectedChar}. Try again!`;
+                        feedbackText.classList.replace('text-success', 'text-error');
+                        ws.send(JSON.stringify({ type: 'reset' })); 
+                    }
+                }
+            }
+        };
+
+        ws.onclose = () => { streamActive = false; setTimeout(connectWS, 2000); };
+    }
+
+    function processLoop() {
+        if (!streamActive || !canSendFrame) {
+            if(!canSendFrame) requestAnimationFrame(processLoop);
+            return;
+        }
+        const ctx = captureCanvas.getContext('2d');
+        captureCanvas.width = 320; captureCanvas.height = 240;
+        ctx.drawImage(video, 0, 0, 320, 240);
+        canSendFrame = false; 
+        captureCanvas.toBlob((blob) => {
+            if (ws && ws.readyState === WebSocket.OPEN) ws.send(blob);
+            requestAnimationFrame(processLoop);
+        }, 'image/jpeg', 0.5);
+    }
+
+    // Controls
+    if (nextBtn) {
+        nextBtn.onclick = () => {
+            let idx = alphabet.indexOf(currentTargetChar);
+            // Move to next alphabetical character, loop back to A if at end
+            let nextIdx = (idx + 1) % alphabet.length; 
+            window.location.href = `/practice?mode=single&char=${alphabet[nextIdx]}`;
+        };
+    }
+
+    setupNextTarget();
+    startCamera();
+</script>
+{% endif %}
+{% endblock %}

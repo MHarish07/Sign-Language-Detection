@@ -1,0 +1,280 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+    <div class="space-y-6">
+        <div class="relative glass-card rounded-3xl overflow-hidden shadow-2xl aspect-video bg-black">
+            <!-- Smooth Local Video -->
+            <video id="video" class="absolute inset-0 w-full h-full object-cover" autoplay playsinline muted></video>
+            
+            <!-- Transparent Canvas for Detections -->
+            <canvas id="overlayCanvas" class="absolute inset-0 w-full h-full z-10"></canvas>
+            
+            <!-- Hidden Capture Canvas -->
+            <canvas id="captureCanvas" class="hidden"></canvas>
+            
+            <!-- Loading Overlay -->
+            <div id="loadingOverlay" class="absolute inset-0 flex flex-col items-center justify-center bg-base-100/90 z-20">
+                <span class="loading loading-spinner loading-lg text-primary"></span>
+                <p class="mt-4 font-semibold">Initializing Recognition...</p>
+            </div>
+
+            <!-- Gesture Stats -->
+            <div class="absolute bottom-4 left-4 flex items-center gap-4 glass-card p-4 rounded-2xl z-30 border-primary/20">
+                <div class="relative w-14 h-14">
+                    <svg class="w-full h-full" viewBox="0 0 100 100">
+                        <circle class="text-white/5" stroke-width="10" stroke="currentColor" fill="transparent" r="40" cx="50" cy="50"/>
+                        <circle id="progressCircle" class="text-primary progress-ring__circle" stroke-width="10" stroke-dasharray="251.2" stroke-dashoffset="251.2" stroke-linecap="round" stroke="currentColor" fill="transparent" r="40" cx="50" cy="50"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-[10px] uppercase tracking-widest opacity-50 font-black">Stability</p>
+                    <p id="gestureText" class="text-2xl font-black text-white">-</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dedicated Control Buttons -->
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <button id="resetBtn" class="btn btn-outline btn-error rounded-2xl h-14 shadow-lg" title="Reset Session">
+                <i class="fas fa-trash-alt"></i>
+            </button>
+            <button id="spaceBtn" class="btn btn-info rounded-2xl h-14 shadow-lg text-white font-black">
+                <span class="text-xs">SPACE</span>
+            </button>
+            <button id="autocompleteBtn" class="btn btn-primary rounded-2xl h-14 shadow-lg text-white font-black" title="Accept Autocomplete">
+                <i class="fas fa-magic"></i>
+            </button>
+            <button id="applyCorrectBtn" class="btn btn-warning rounded-2xl h-14 shadow-lg text-white font-black">
+                <i class="fas fa-sync-alt"></i>
+                <span class="text-[10px] ml-1">REWRITE</span>
+            </button>
+            <button id="saveBtn" class="btn btn-success rounded-2xl h-14 shadow-lg text-white font-black" title="Save History">
+                <i class="fas fa-save"></i>
+            </button>
+        </div>
+    </div>
+
+    <div class="space-y-6">
+        <div class="glass-card rounded-3xl p-8 h-full flex flex-col shadow-2xl border-white/5">
+            <div class="flex items-center justify-between mb-8">
+                <h2 class="text-2xl font-black flex items-center gap-3">
+                    <span class="p-2 bg-primary/20 rounded-xl"><i class="fas fa-quote-left text-primary"></i></span>
+                    Stream Output
+                </h2>
+                <div class="badge badge-primary p-4 font-black" id="wordCount">0 WORDS</div>
+            </div>
+
+            <div class="flex-1 bg-neutral/40 rounded-3xl p-8 overflow-y-auto mb-6 relative border border-white/5 shadow-inner">
+                <p id="fullSentence" class="text-4xl leading-snug font-bold">
+                    <span class="opacity-10 select-none">Begin signing...</span>
+                </p>
+                <p id="suggestionText" class="text-4xl leading-snug font-bold text-primary/30 absolute top-8 left-8 pointer-events-none"></p>
+            </div>
+
+            <div class="bg-base-300/50 p-6 rounded-2xl border border-white/5 shadow-lg relative overflow-hidden group">
+                <div class="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+                <p class="text-[10px] uppercase tracking-widest opacity-50 font-black mb-3">AI Context Correction</p>
+                <p id="correctedSentence" class="text-xl font-bold text-primary italic">Awaiting input...</p>
+                <div class="mt-4 flex items-center justify-between">
+                    <div class="flex items-center gap-2 text-[9px] opacity-40">
+                        <span class="badge badge-xs badge-outline">Auto-Correcting</span>
+                    </div>
+                    <p class="text-[9px] opacity-30 font-black">Powered by Gemini AI</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="toastContainer" class="toast toast-end z-50"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const video = document.getElementById('video');
+    const overlayCanvas = document.getElementById('overlayCanvas');
+    const captureCanvas = document.getElementById('captureCanvas');
+    const fullSentence = document.getElementById('fullSentence');
+    const suggestionText = document.getElementById('suggestionText');
+    const correctedSentence = document.getElementById('correctedSentence');
+    const progressCircle = document.getElementById('progressCircle');
+    const wordCountBadge = document.getElementById('wordCount');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    const gestureText = document.getElementById('gestureText');
+
+    let ws;
+    let streamActive = false;
+    let canSendFrame = true;
+    let currentSuggestion = "";
+    const CIRCUMFERENCE = 2 * Math.PI * 40;
+
+    const showToast = (message, type = 'info') => {
+        const container = document.getElementById('toastContainer');
+        const alert = document.createElement('div');
+        alert.className = `alert alert-${type} shadow-2xl mb-2 font-bold transition-all duration-300`;
+        alert.innerHTML = `<span>${message}</span>`;
+        container.appendChild(alert);
+        setTimeout(() => {
+            alert.classList.add('opacity-0');
+            setTimeout(() => alert.remove(), 300);
+        }, 1500);
+    };
+
+    async function startCamera() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { width: 640, height: 480 } 
+            });
+            video.srcObject = stream;
+            video.onloadedmetadata = () => {
+                overlayCanvas.width = video.clientWidth;
+                overlayCanvas.height = video.clientHeight;
+                loadingOverlay.classList.add('hidden');
+                connectWS();
+            };
+        } catch (err) {
+            loadingOverlay.innerHTML = `<p class="text-error font-bold">Camera Access Denied</p>`;
+        }
+    }
+
+    function drawDetections(detections) {
+        const ctx = overlayCanvas.getContext('2d');
+        ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+        
+        // Match inference resolution
+        const scaleX = overlayCanvas.width / 320;
+        const scaleY = overlayCanvas.height / 240;
+
+        detections.forEach(det => {
+            const [x1, y1, x2, y2] = det.bbox;
+            const w = (x2 - x1) * scaleX;
+            const h = (y2 - y1) * scaleY;
+            const x = x1 * scaleX;
+            const y = y1 * scaleY;
+
+            ctx.strokeStyle = '#570df8';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(x, y, w, h);
+            
+            ctx.fillStyle = '#570df8';
+            const label = `${det.class_name}`;
+            ctx.font = 'bold 14px Inter, system-ui';
+            const textWidth = ctx.measureText(label).width;
+            ctx.fillRect(x, y - 22, textWidth + 10, 22);
+            
+            ctx.fillStyle = 'white';
+            ctx.fillText(label, x + 5, y - 6);
+        });
+    }
+
+    function connectWS() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        ws = new WebSocket(`${protocol}//${window.location.host}/ws/stream?mode=recognition`);
+
+        ws.onopen = () => {
+            streamActive = true;
+            requestAnimationFrame(processLoop);
+        };
+
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.type === 'update') {
+                if (data.detections) {
+                    drawDetections(data.detections);
+                }
+                
+                canSendFrame = true; // Unlock
+                
+                if (data.current_gesture !== undefined) {
+                    gestureText.innerText = data.current_gesture || "-";
+                }
+
+                if (data.progress !== undefined) {
+                    const offset = CIRCUMFERENCE - ((data.progress || 0) * CIRCUMFERENCE);
+                    progressCircle.style.strokeDashoffset = offset;
+                }
+
+                if (data.full_sentence !== undefined) {
+                    fullSentence.innerText = data.full_sentence;
+                    const cleanText = data.full_sentence.trim();
+                    wordCountBadge.innerText = `${cleanText ? cleanText.split(/\s+/).length : 0} WORDS`;
+                }
+
+                if (data.llm_suggestion !== undefined) {
+                    currentSuggestion = data.llm_suggestion;
+                    suggestionText.innerText = fullSentence.innerText + (currentSuggestion ? " " + currentSuggestion : "");
+                }
+
+                if (data.llm_corrected !== undefined) {
+                    correctedSentence.innerText = data.llm_corrected || "Awaiting input...";
+                }
+
+                if (data.committed && data.char) {
+                    showToast(`Typed: ${data.char}`, "success");
+                }
+            }
+        };
+
+        ws.onclose = () => {
+            streamActive = false;
+            setTimeout(connectWS, 2000);
+        };
+    }
+
+    function processLoop() {
+        if (!streamActive) return;
+        
+        if (!canSendFrame) {
+            requestAnimationFrame(processLoop);
+            return;
+        }
+
+        const ctx = captureCanvas.getContext('2d');
+        captureCanvas.width = 320;
+        captureCanvas.height = 240;
+        ctx.drawImage(video, 0, 0, 320, 240);
+        
+        canSendFrame = false; 
+        captureCanvas.toBlob((blob) => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(blob);
+            }
+            requestAnimationFrame(processLoop);
+        }, 'image/jpeg', 0.5);
+    }
+
+    // Controls
+    document.getElementById('spaceBtn').onclick = () => {
+        ws.send(JSON.stringify({ type: 'force_char', char: ' ' }));
+    };
+
+    document.getElementById('autocompleteBtn').onclick = () => {
+        if (currentSuggestion) {
+            ws.send(JSON.stringify({ type: 'accept_suggestion', suggestion: currentSuggestion }));
+            currentSuggestion = "";
+            suggestionText.innerText = "";
+        }
+    };
+
+    document.getElementById('applyCorrectBtn').onclick = () => {
+        ws.send(JSON.stringify({ type: 'apply_correction' }));
+    };
+
+    document.getElementById('resetBtn').onclick = () => {
+        ws.send(JSON.stringify({ type: 'reset' }));
+        fullSentence.innerHTML = '<span class="opacity-10 select-none">Begin signing...</span>';
+        suggestionText.innerText = "";
+        correctedSentence.innerText = "Awaiting input...";
+        currentSuggestion = "";
+    };
+
+    document.getElementById('saveBtn').onclick = () => {
+        ws.send(JSON.stringify({ type: 'save' }));
+        showToast("Saved Session", "success");
+        setTimeout(() => window.location.href = '/history', 800);
+    };
+
+    startCamera();
+</script>
+{% endblock %}

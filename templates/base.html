@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASL Pipeline - Gemini AI</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        @font-face {
+            font-family: 'ASLFont';
+            src: url('https://aslfont.github.io/ASL-Finger-Spelling-Images/fonts/ASL.ttf');
+        }
+
+        .asl-font {
+            font-family: 'ASLFont', sans-serif;
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .progress-ring__circle {
+            transition: stroke-dashoffset 0.35s;
+            transform: rotate(-90deg);
+            transform-origin: 50% 50%;
+        }
+    </style>
+</head>
+
+<body class="min-h-screen bg-neutral text-neutral-content">
+
+    <div class="navbar bg-base-100 shadow-xl px-8">
+        <div class="flex-1">
+            <a class="btn btn-ghost text-xl font-bold gap-2">
+                <i class="fas fa-hand-paper text-primary"></i>
+                ASL <span class="text-primary">Pipeline</span>
+            </a>
+        </div>
+        <div class="flex-none">
+            <div class="tabs tabs-boxed">
+                <a href="/" class="tab {{ 'tab-active' if active_tab == 'recognition' else '' }}">
+                    <i class="fas fa-video mr-2"></i> Recognition
+                </a>
+                <a href="/learn" class="tab {{ 'tab-active' if active_tab == 'learn' else '' }}">
+                    <i class="fas fa-graduation-cap mr-2"></i> Learn
+                </a>
+                <a href="/practice" class="tab {{ 'tab-active' if active_tab == 'practice' else '' }}">
+                    <i class="fas fa-bullseye mr-2"></i> Practice
+                </a>
+                <a href="/history" class="tab {{ 'tab-active' if active_tab == 'history' else '' }}">
+                    <i class="fas fa-history mr-2"></i> History
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <main class="container mx-auto p-8">
+        {% block content %}{% endblock %}
+    </main>
+
+    <audio id="pingSound" src="/static/audio/ping.mp3" preload="auto"></audio>
+
+    {% block scripts %}{% endblock %}
+</body>
+
+</html>

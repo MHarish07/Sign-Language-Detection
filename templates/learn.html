@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="mb-8 text-center">
+    <h1 class="text-4xl font-bold text-primary mb-2">
+        Learn ASL Alphabet
+    </h1>
+    <p class="text-lg opacity-80">
+        Click any letter to start practicing finger spelling
+    </p>
+</div>
+
+<div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
+
+{% for letter in alphabet %}
+
+<a href="/practice?char={{letter}}&mode=single">
+
+<div class="card glass-card hover:scale-105 transition-all duration-300 cursor-pointer">
+
+<div class="card-body items-center justify-center p-3">
+
+<img 
+src="/static/asl/{{letter}}.jpeg"
+alt="{{letter}} sign"
+class="rounded-lg object-contain"
+/>
+
+</div>
+
+</div>
+
+</a>
+
+{% endfor %}
+
+</div>
+
+{% endblock %}
