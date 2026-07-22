@@ -1,7 +1,8 @@
 venv/
+.venv/
 __pycache__/
 *.pyc
 .env
 .idea/
 .vscode/
-.file_list.txt
+file_list.txt
